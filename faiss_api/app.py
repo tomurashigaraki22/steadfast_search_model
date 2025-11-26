@@ -149,6 +149,13 @@ def search():
             out.append(row)
     return jsonify({"results": out, "count": len(out)})
 
+@app.route("/health", methods=["GET"])
+def health():
+    size = 0
+    if _index and getattr(_index, "mapping", None):
+        size = len(_index.mapping)
+    return jsonify({"status": "ok", "index_ready": _index_ready, "index_size": size})
+
 def create_app():
     """
     Returns the Flask app, ensuring index initialization on startup.
