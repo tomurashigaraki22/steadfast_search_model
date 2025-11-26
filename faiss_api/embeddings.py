@@ -6,6 +6,7 @@ import numpy as np
 from typing import Dict, List
 from PIL import Image
 from sentence_transformers import SentenceTransformer
+from .config import load_config
 
 _model = None
 
@@ -15,7 +16,10 @@ def get_model():
     """
     global _model
     if _model is None:
-        _model = SentenceTransformer("clip-ViT-L-14")
+        cfg = load_config()
+        name = cfg.get("MYSQL_URL")  # avoid unused
+        model_name = (cfg.get("EMBEDDING_MODEL") or os.environ.get("EMBEDDING_MODEL") or "clip-ViT-B-32")
+        _model = SentenceTransformer(model_name)
     return _model
 
 def get_embedding_dim() -> int:
@@ -35,8 +39,7 @@ def get_embedding_dim() -> int:
         return int(v.shape[0])
     except Exception:
         pass
-    # Fallback to CLIP ViT-L/14 known dimension
-    return 768
+    return 512
 
 def _normalize(vec: np.ndarray) -> np.ndarray:
     """

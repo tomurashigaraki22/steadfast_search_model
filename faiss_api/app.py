@@ -1,4 +1,5 @@
 import os
+import threading
 from typing import List, Dict
 from flask import Flask, request, jsonify
 import numpy as np
@@ -13,6 +14,7 @@ app = Flask(__name__)
 os.makedirs(DATA_DIR, exist_ok=True)
 
 _index: FaissIndexStore = None
+_index_ready: bool = False
 
 def _init_index():
     """
@@ -24,6 +26,8 @@ def _init_index():
     store = FaissIndexStore(dim=dim)
     if store.load_if_exists():
         _index = store
+        global _index_ready
+        _index_ready = True
         return
 
     products: List[Dict]
@@ -47,6 +51,12 @@ def _init_index():
     store.rebuild(items)
     store.save()
     _index = store
+    global _index_ready
+    _index_ready = True
+
+def _init_index_background():
+    t = threading.Thread(target=_init_index, daemon=True)
+    t.start()
 
 @app.route("/add-product/<int:product_id>", methods=["POST"])
 def add_product(product_id: int):
@@ -55,8 +65,8 @@ def add_product(product_id: int):
     Persists index and mapping.
     """
     global _index
-    if _index is None:
-        _init_index()
+    if not _index_ready:
+        return jsonify({"error": "index initializing"}), 503
     row = fetch_product(product_id)
     if not row:
         return jsonify({"error": "product not found"}), 404
@@ -72,8 +82,8 @@ def delete_product(product_id: int):
     Persists index and mapping.
     """
     global _index
-    if _index is None:
-        _init_index()
+    if not _index_ready:
+        return jsonify({"error": "index initializing"}), 503
     remaining_ids = [pid for pid in _index.mapping if pid != product_id]
 
     # Try MySQL; fallback to SQL dump for rows
@@ -115,8 +125,8 @@ def search():
     Returns full product rows with similarity scores.
     """
     global _index
-    if _index is None:
-        _init_index()
+    if not _index_ready:
+        return jsonify({"error": "index initializing"}), 503
     data = request.get_json(force=True) or {}
     query = str(data.get("query") or "").strip()
     top_k = int(data.get("top_k") or 5)
@@ -145,9 +155,9 @@ def create_app():
     """
     Returns the Flask app, ensuring index initialization on startup.
     """
-    _init_index()
+    _init_index_background()
     return app
 
 if __name__ == "__main__":
-    _init_index()
+    _init_index_background()
     app.run(host="0.0.0.0", port=8000)
