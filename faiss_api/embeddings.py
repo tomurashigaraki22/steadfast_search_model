@@ -18,6 +18,26 @@ def get_model():
         _model = SentenceTransformer("clip-ViT-L-14")
     return _model
 
+def get_embedding_dim() -> int:
+    """
+    Returns embedding dimension robustly. Some models may not populate
+    get_sentence_embedding_dimension; fall back to encoding a sample.
+    """
+    model = get_model()
+    try:
+        dim = model.get_sentence_embedding_dimension()
+        if dim:
+            return int(dim)
+    except Exception:
+        pass
+    try:
+        v = model.encode(["dim_probe"], convert_to_numpy=True, normalize_embeddings=False)[0]
+        return int(v.shape[0])
+    except Exception:
+        pass
+    # Fallback to CLIP ViT-L/14 known dimension
+    return 768
+
 def _normalize(vec: np.ndarray) -> np.ndarray:
     """
     L2-normalizes a vector for cosine similarity via inner product.
@@ -89,4 +109,3 @@ def get_embedding_for_query(query: str) -> np.ndarray:
         except Exception:
             pass
     return embed_text(q)
-

@@ -5,7 +5,7 @@ import numpy as np
 
 from .config import DATA_DIR
 from .db import fetch_product, fetch_all_products
-from .embeddings import get_embedding_for_product, get_embedding_for_query, get_model
+from .embeddings import get_embedding_for_product, get_embedding_for_query, get_model, get_embedding_dim
 from .index_store import FaissIndexStore
 from .utils import parse_product_rows_from_sql
 
@@ -20,7 +20,7 @@ def _init_index():
     Builds from MySQL or product_details.sql if no persisted index exists.
     """
     global _index
-    dim = int(get_model().get_sentence_embedding_dimension())
+    dim = int(get_embedding_dim())
     store = FaissIndexStore(dim=dim)
     if store.load_if_exists():
         _index = store
@@ -151,4 +151,3 @@ def create_app():
 if __name__ == "__main__":
     _init_index()
     app.run(host="0.0.0.0", port=8000)
-
