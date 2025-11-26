@@ -1,0 +1,12 @@
+flask
+gunicorn
+faiss-cpu==1.13.0
+sentence-transformers
+torch
+torchvision
+numpy
+mysql-connector-python
+requests
+pillow
+python-dotenv
+
