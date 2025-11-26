@@ -15,7 +15,7 @@ def get_model():
     """
     global _model
     if _model is None:
-        _model = SentenceTransformer("clip-ViT-L-14")
+        _model = SentenceTransformer("clip-ViT-L-14", use_fast=False)
     return _model
 
 def get_embedding_dim() -> int:
