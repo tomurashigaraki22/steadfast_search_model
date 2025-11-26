@@ -49,6 +49,10 @@ def _init_index():
         batch_threshold = 30
         for row in products:
             try:
+                # Skip deleted products
+                if str(row.get("is_deleted")) == "1":
+                    _index_progress["processed"] += 1
+                    continue
                 pid = int(row["id"])
                 vec = get_embedding_for_product(row)
                 _index.add(pid, vec)
@@ -79,6 +83,8 @@ def add_product(product_id: int):
     row = fetch_product(product_id)
     if not row:
         return jsonify({"error": "product not found"}), 404
+    if str(row.get("is_deleted")) == "1":
+        return jsonify({"error": "product is deleted"}), 400
     vec = get_embedding_for_product(row)
     _index.add(product_id, vec)
     _index.save()
