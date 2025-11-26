@@ -15,42 +15,53 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 _index: FaissIndexStore = None
 _index_ready: bool = False
+_index_progress = {"total": 0, "processed": 0}
+_index_error: str = ""
 
 def _init_index():
     """
     Initializes FAISS index and loads/creates persistence.
     Builds from MySQL or product_details.sql if no persisted index exists.
+    Performs incremental building so API can serve requests early.
     """
-    global _index, _index_ready
+    global _index, _index_ready, _index_progress, _index_error
     dim = int(get_embedding_dim())
     store = FaissIndexStore(dim=dim)
     if store.load_if_exists():
         _index = store
         _index_ready = True
+        _index_progress = {"total": len(store.mapping), "processed": len(store.mapping)}
         return
-
-    products: List[Dict]
     try:
-        products = fetch_all_products()
-    except Exception:
-        products = []
-
-    if not products:
-        products = parse_product_rows_from_sql()
-
-    items = []
-    for row in products:
+        products: List[Dict]
         try:
-            pid = int(row["id"])
-            vec = get_embedding_for_product(row)
-            items.append((pid, vec))
+            products = fetch_all_products()
         except Exception:
-            continue
+            products = []
 
-    store.rebuild(items)
-    store.save()
-    _index = store
-    _index_ready = True
+        if not products:
+            products = parse_product_rows_from_sql()
+
+        _index = store
+        _index_progress = {"total": len(products), "processed": 0}
+
+        # Incremental build: add vectors one by one and mark ready after first batch
+        batch_threshold = 30
+        for row in products:
+            try:
+                pid = int(row["id"])
+                vec = get_embedding_for_product(row)
+                _index.add(pid, vec)
+                _index_progress["processed"] += 1
+                if not _index_ready and _index_progress["processed"] >= batch_threshold:
+                    _index_ready = True
+            except Exception:
+                continue
+
+        _index_ready = True
+        _index.save()
+    except Exception as e:
+        _index_error = str(e)
 
 def _init_index_background():
     t = threading.Thread(target=_init_index, daemon=True)
@@ -154,7 +165,13 @@ def health():
     size = 0
     if _index and getattr(_index, "mapping", None):
         size = len(_index.mapping)
-    return jsonify({"status": "ok", "index_ready": _index_ready, "index_size": size})
+    return jsonify({
+        "status": "ok",
+        "index_ready": _index_ready,
+        "index_size": size,
+        "progress": _index_progress,
+        "error": _index_error,
+    })
 
 def create_app():
     """

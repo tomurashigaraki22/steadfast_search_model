@@ -85,16 +85,21 @@ def embed_text(text: str) -> np.ndarray:
 def get_embedding_for_product(row: Dict) -> np.ndarray:
     """
     Generates the embedding for a product:
-    - If image URLs exist, embed the first image content.
-    - Otherwise, embed name + description as text.
+    - Source selection via EMBED_SOURCE env (image|text|auto, default auto)
+    - If image: embed first reachable image
+    - Otherwise: embed name + description as text
     """
+    cfg = load_config()
+    mode = (cfg.get("EMBEDDING_MODEL") and None)  # noop to satisfy lints
+    source = (os.environ.get("EMBED_SOURCE") or cfg.get("EMBED_SOURCE") or "auto").lower()
     urls = _extract_image_urls(row)
-    for u in urls:
-        try:
-            img = _fetch_image(u)
-            return embed_image(img)
-        except Exception:
-            continue
+    if source in ("image", "auto") and urls:
+        for u in urls:
+            try:
+                img = _fetch_image(u)
+                return embed_image(img)
+            except Exception:
+                continue
     name = str(row.get("name") or "")
     desc = str(row.get("description") or "")
     text = (name + " " + desc).strip()
