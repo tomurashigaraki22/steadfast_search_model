@@ -21,12 +21,11 @@ def _init_index():
     Initializes FAISS index and loads/creates persistence.
     Builds from MySQL or product_details.sql if no persisted index exists.
     """
-    global _index
+    global _index, _index_ready
     dim = int(get_embedding_dim())
     store = FaissIndexStore(dim=dim)
     if store.load_if_exists():
         _index = store
-        global _index_ready
         _index_ready = True
         return
 
@@ -51,7 +50,6 @@ def _init_index():
     store.rebuild(items)
     store.save()
     _index = store
-    global _index_ready
     _index_ready = True
 
 def _init_index_background():
