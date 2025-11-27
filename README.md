@@ -26,7 +26,7 @@ This API provides image/text similarity search over your existing MySQL `product
   Returns `{ index_ready, index_size, progress, error }`. Routes return `503` with `{"error":"index initializing"}` until the index is ready.
 
 ## Frontend Integration
-You can call `/search` from any frontend (React/Vue/Next/etc.). Example using `fetch`:
+You can call `/search` from any frontend (React/Vue/Next/etc.) Base URL for service is https://steadfastsearchmodel-production.up.railway.app Example using `fetch`:
 ```js
 async function searchProducts(query, topK = 5) {
   const res = await fetch("http://<server>:9990/search", {
@@ -92,6 +92,15 @@ async function searchProducts(query, topK = 5) {
   ```
 - Ensure port `9990/tcp` is open on your firewall/security groups.
 - First run downloads the model; it can take time on CPU. Health will report progress.
+
+## CORS
+- Allowed origins:
+  - `http://localhost:3000`
+  - `http://localhost:3001`
+  - `https://steadfast.ng`
+  - `https://admin.steadfast.ng`
+  - `https://padi.steadfast.ng`
+- Already enabled via `flask-cors` in the app
 
 ## Error Handling
 - `503` while index builds: poll `/health` until `index_ready: true`.

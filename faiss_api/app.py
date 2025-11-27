@@ -2,6 +2,7 @@ import os
 import threading
 from typing import List, Dict
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import numpy as np
 
 from .config import DATA_DIR
@@ -12,6 +13,14 @@ from .utils import parse_product_rows_from_sql
 
 app = Flask(__name__)
 os.makedirs(DATA_DIR, exist_ok=True)
+_allowed_origins = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "https://steadfast.ng",
+    "https://admin.steadfast.ng",
+    "https://padi.steadfast.ng",
+]
+CORS(app, resources={r"/*": {"origins": _allowed_origins}})
 
 _index: FaissIndexStore = None
 _index_ready: bool = False
