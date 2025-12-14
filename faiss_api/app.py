@@ -141,6 +141,47 @@ def delete_product(product_id: int):
     _index.save()
     return jsonify({"status": "deleted", "product_id": product_id})
 
+@app.route("/rebuild", methods=["GET"])
+def rebuild_index():
+    global _index, _index_ready, _index_progress, _index_error
+    def _task():
+        try:
+            dim = int(get_embedding_dim())
+            store = FaissIndexStore(dim=dim)
+            products: List[Dict]
+            try:
+                products = fetch_all_products()
+            except Exception:
+                products = []
+            if not products:
+                products = parse_product_rows_from_sql()
+            _index_progress = {"total": len(products), "processed": 0}
+            items = []
+            for row in products:
+                try:
+                    pid = int(row.get("productId") or row.get("id"))
+                except Exception:
+                    _index_progress["processed"] += 1
+                    continue
+                try:
+                    vec = get_embedding_for_product(row)
+                except Exception:
+                    _index_progress["processed"] += 1
+                    continue
+                items.append((pid, vec))
+                _index_progress["processed"] += 1
+            store.rebuild(items)
+            store.save()
+            _index = store
+            _index_ready = True
+        except Exception as e:
+            _index_error = str(e)
+            _index_ready = True
+    _index_ready = False
+    t = threading.Thread(target=_task, daemon=True)
+    t.start()
+    return jsonify({"status": "rebuild_started"}), 202
+
 @app.route("/search", methods=["POST"])
 def search():
     """
@@ -174,6 +215,34 @@ def search():
             row["_similarity"] = score
             out.append(row)
     return jsonify({"results": out, "count": len(out)})
+
+@app.route("/rebuild", methods=["POST"])
+def rebuild():
+    global _index
+    if not _index_ready:
+        return jsonify({"error": "index initializing"}), 503
+    products: List[Dict]
+    try:
+        products = fetch_all_products()
+    except Exception:
+        products = []
+    if not products:
+        products = parse_product_rows_from_sql()
+    items = []
+    for p in products:
+        try:
+            if str(p.get("is_deleted")) == "1":
+                continue
+            pid = p.get("productId") or p.get("id")
+            if pid is None:
+                continue
+            vec = get_embedding_for_product(p)
+            items.append((int(pid), vec))
+        except Exception:
+            continue
+    _index.rebuild(items)
+    _index.save()
+    return jsonify({"status": "ok", "index_size": len(_index.mapping)})
 
 @app.route("/health", methods=["GET"])
 def health():
