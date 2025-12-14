@@ -62,13 +62,14 @@ def _init_index():
                 if str(row.get("is_deleted")) == "1":
                     _index_progress["processed"] += 1
                     continue
-                pid = int(row["id"])
+                pid = int(row.get("productId") or row.get("id"))
                 vec = get_embedding_for_product(row)
                 _index.add(pid, vec)
                 _index_progress["processed"] += 1
                 if not _index_ready and _index_progress["processed"] >= batch_threshold:
                     _index_ready = True
             except Exception:
+                _index_progress["processed"] += 1
                 continue
 
         _index_ready = True
@@ -145,6 +146,7 @@ def delete_product(product_id: int):
 def rebuild_index():
     global _index, _index_ready, _index_progress, _index_error
     def _task():
+        global _index, _index_ready, _index_progress, _index_error
         try:
             dim = int(get_embedding_dim())
             store = FaissIndexStore(dim=dim)
